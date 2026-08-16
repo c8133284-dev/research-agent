@@ -1,7 +1,8 @@
 ﻿from tavily_wrapper import tavily_search
 
 def expand_query(query: str) -> list:
-    # Simple expansion - creates variations of the query
+    if not query or not query.strip():
+        return []
     return [
         query,
         f'{query} explained',
@@ -9,33 +10,41 @@ def expand_query(query: str) -> list:
     ]
 
 def dedup_sources(sources: list) -> list:
-    # Remove duplicate URLs
     seen_urls = set()
     unique = []
     for s in sources:
-        if s['url'] not in seen_urls:
-            seen_urls.add(s['url'])
+        url = s.get('url')
+        if url and url not in seen_urls:
+            seen_urls.add(url)
             unique.append(s)
     return unique
 
 def research_agent(query: str) -> dict:
+    if not query or not query.strip():
+        return {'query': query, 'sources': [], 'reranked_results': [], 'error': 'empty_query'}
+
     expanded_queries = expand_query(query)
 
     all_sources = []
     for q in expanded_queries:
         result = tavily_search(q)
-        all_sources.extend(result['results'])
+        if result.get('error'):
+            continue
+        all_sources.extend(result.get('results', []))
+
+    if not all_sources:
+        return {'query': query, 'sources': [], 'reranked_results': [], 'error': 'no_results_found'}
 
     unique_sources = dedup_sources(all_sources)
 
     sources_formatted = [
-        {'url': s['url'], 'title': s['title'], 'content': s['content']}
+        {'url': s.get('url', ''), 'title': s.get('title', ''), 'content': s.get('content', '')}
         for s in unique_sources
     ]
 
-    reranked = sorted(unique_sources, key=lambda x: x['score'], reverse=True)
+    reranked = sorted(unique_sources, key=lambda x: x.get('score', 0), reverse=True)
     reranked_formatted = [
-        {'url': r['url'], 'score': r['score']}
+        {'url': r.get('url', ''), 'score': r.get('score', 0)}
         for r in reranked
     ]
 
@@ -46,6 +55,10 @@ def research_agent(query: str) -> dict:
     }
 
 if __name__ == '__main__':
+    print('Testing normal query...')
     result = research_agent('What is LangGraph?')
-    print('Number of unique sources:', len(result['sources']))
-    print(result)
+    print('Got', len(result['sources']), 'sources')
+
+    print('Testing empty query...')
+    result2 = research_agent('')
+    print(result2)
