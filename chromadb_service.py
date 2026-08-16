@@ -1,11 +1,14 @@
 ﻿import chromadb
 
+client = chromadb.Client()
+
 def get_chroma_client():
-    return chromadb.Client()
+    return client
 
 def ingest_documents(collection_name: str, documents: list, ids: list) -> dict:
-    # STUB VERSION - pretend to store documents
-    # Real logic (embedding + upsert) comes later
+    # REAL VERSION - actually embeds and stores documents
+    collection = client.get_or_create_collection(collection_name)
+    collection.add(documents=documents, ids=ids)
     return {
         'status': 'success',
         'collection': collection_name,
@@ -13,14 +16,25 @@ def ingest_documents(collection_name: str, documents: list, ids: list) -> dict:
     }
 
 def retrieve_documents(collection_name: str, query: str, n_results: int = 3) -> list:
-    # STUB VERSION - returns fake retrieved chunks in agreed shape
-    return [
-        {'doc_id': 'doc_1', 'content': 'Fake retrieved content 1', 'score': 0.91, 'metadata': {'source': 'test'}},
-        {'doc_id': 'doc_2', 'content': 'Fake retrieved content 2', 'score': 0.85, 'metadata': {'source': 'test'}}
-    ]
+    # REAL VERSION - actually searches ChromaDB
+    collection = client.get_or_create_collection(collection_name)
+    results = collection.query(query_texts=[query], n_results=n_results)
+
+    output = []
+    ids = results['ids'][0]
+    docs = results['documents'][0]
+    distances = results['distances'][0]
+    for i in range(len(ids)):
+        output.append({
+            'doc_id': ids[i],
+            'content': docs[i],
+            'score': distances[i],
+            'metadata': {}
+        })
+    return output
 
 if __name__ == '__main__':
-    ingest_result = ingest_documents('research_docs', ['doc text 1', 'doc text 2'], ['id1', 'id2'])
+    ingest_result = ingest_documents('research_docs', ['LangGraph is an agent framework.', 'ChromaDB stores embeddings.'], ['id1', 'id2'])
     print('Ingest result:', ingest_result)
 
     retrieve_result = retrieve_documents('research_docs', 'What is LangGraph?')
